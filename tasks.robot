@@ -8,23 +8,29 @@ Library           RPA.Browser.Selenium    auto_close=${FALSE}
 Library           RPA.HTTP
 Library           RPA.Tables
 Library           RPA.PDF
+Library           RPA.Archive
+
+*** Variables ***
+${robot_receipt}=    ${OUTPUT_DIR}${/}temporary${/}order.pdf
+${robot_screenshot}=    ${OUTPUT_DIR}${/}temporary${/}screenshot.png
 
 *** Tasks ***
 Order robots from RobotSpareBin Industries Inc
-    Open the website
     Get order list
-    Close popup
     ${orders}=    Read table from CSV    orders.csv
-    ${row}=    Get Table Row    ${orders}    1
-    Fill the form    ${row}
-    Preview order
-    # Wait Until Keyword Succeeds    1 min    1 sec    Submit order
-    Store the receipt as a PDF file    ${row}[Order number]
-    # Take a screenshot of the robot
-    # FOR    ${row}    IN    @{orders}
-    #    Close popup
-    #    Fill the form ${row}
-    # [Teardown]    Log out and close the browser
+    FOR    ${row}    IN    @{orders}
+        Open the website
+        Close popup
+        Fill the form    ${row}
+        Fill the form    ${row}
+        Preview order
+        Wait Until Keyword Succeeds    1 min    1 sec    Submit order
+        Store the receipt as a PDF file    ${row}[Order number]
+        Take a screenshot of the robot    ${row}[Order number]
+        Embed screenshot to receipt PDF    ${row}[Order number]
+        Close All Browsers
+    END
+    ZIP receipts together
 
 *** Keywords ***
 Open the website
@@ -48,12 +54,25 @@ Preview order
 
 Submit order
     Click Button    order
+    Element Should Be Visible    id:receipt
 
 Store the receipt as a PDF file
     [Arguments]    ${order_number}
-    Wait Until Element Is Visible    id:receipt
     ${order_receipt}=    Get Element Attribute    id:receipt    outerHTML
-    Html To Pdf    ${order_receipt}    ${OUTPUT_DIR}${/}${receipts}${/}${order_number}.pdf
+    Html To Pdf    ${order_receipt}    ${robot_receipt}
 
+Take a screenshot of the robot
+    [Arguments]    ${order_number}
+    Screenshot    robot-preview-image    ${robot_screenshot}
 
-# Take a screenshot of the robot
+Embed screenshot to receipt PDF
+    [Arguments]    ${order_number}
+    ${files}=    Create List
+    ...    ${robot_receipt}
+    ...    ${robot_screenshot}
+    Add Files To PDF    ${files}    ${OUTPUT_DIR}${/}receipts${/}${order_number}.pdf
+
+ZIP receipts together
+    Archive Folder With Zip
+    ...    ${OUTPUT_DIR}${/}receipts${/}
+    ...    ${OUTPUT_DIR}${/}receipts.zip
